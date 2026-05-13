@@ -1,24 +1,26 @@
 BOT_TOKEN = "8664623285:AAFlvJqJOYH7jMEbY8M4MuWLiNOGFM8QKa4"
 
-# Настройки Platima
-PLATIMA_API_URL = "https://platima.ru/api/create"
-PLATIMA_WEBHOOK_SECRET = "ваш_секретный_ключ"   # придумайте сложный
+# Lava.top
+LAVA_SHOP_ID = "48fef41e-7f1f-4ec9-a483-8e0e362b9d1b"          # ID проекта из настроек Lava
+LAVA_API_KEY = "B72ybYs31Llt4YKcaZAIB6GWjOLNwSYXLofpMfTkNrBgwjvM6WzZWEmJgAEQlA65"          # API-ключ из раздела Интеграция
+LAVA_SECRET_KEY = "B72ybYs31Llt4YKcaZAIB6GWjOLNwSYXLofpMfTkNrBgwjvM6WzZWEmJgAEQlA65"    # Секретный ключ из настроек проекта
+LAVA_HOOK_URL = "https://mileranceshop-production.up.railway.app/webhook/lava"
+LAVA_SUCCESS_URL = "https://t.me/MileranceShop_bot"
+LAVA_FAIL_URL = "https://t.me/MileranceShop_bot"
 
-# ID администратора (ваш Telegram ID)
-ADMIN_IDS = [1017045544]  # замените на свой
-
-# Ссылка на поддержку (ваш Telegram)
-SUPPORT_LINK = "https://t.me/milerance"
-
-# Каталог товаров (можно будет редактировать через админку)
-# Пока что пустой, вы наполните сами через админку или вручную
+# Каталог товаров (можно редактировать через админку, но для начальной инициализации оставим)
 CATALOG = {
-    "game_currency": {
-        "name": "🎮 Игровая валюта",
-        "items": {}
+    "fortnite": {
+        "name": "🔫 Fortnite",
+        "items": {
+            "fn_800": {"name": "800 В-баксов", "price": 499, "desc": "На аккаунт"},
+            "fn_2400": {"name": "2400 В-баксов", "price": 1299, "desc": "На аккаунт"}
+        }
     },
     "subscriptions": {
         "name": "📺 Подписки",
-        "items": {}
+        "items": {
+            "netflix": {"name": "Netflix Premium 1 мес", "price": 1000, "desc": "4K, 4 устройства"}
+        }
     }
 }
