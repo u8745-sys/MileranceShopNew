@@ -6,7 +6,6 @@ import os
 DB_NAME = "shop.db"
 PRODUCTS_FILE = "products.json"
 
-# ========== ИНИЦИАЛИЗАЦИЯ БД ==========
 def init_db():
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, username TEXT, balance INTEGER DEFAULT 0, registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
@@ -15,7 +14,6 @@ def init_db():
         conn.execute("CREATE TABLE IF NOT EXISTS promocodes (code TEXT PRIMARY KEY, discount_type TEXT, discount_value INTEGER, uses_left INTEGER, expires_at TIMESTAMP)")
         conn.execute("CREATE TABLE IF NOT EXISTS used_promocodes (user_id INTEGER, code TEXT, used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
 
-# ========== ПОЛЬЗОВАТЕЛИ И БАЛАНС ==========
 def add_user(user_id, username):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("INSERT OR IGNORE INTO users (user_id, username, balance) VALUES (?, ?, 0)", (user_id, username))
@@ -29,7 +27,6 @@ def update_balance(user_id, amount):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, user_id))
 
-# ========== ДЕПОЗИТЫ (ПОПОЛНЕНИЯ) ==========
 def add_deposit_order(user_id, amount):
     order_id = str(uuid.uuid4())[:8]
     with sqlite3.connect(DB_NAME) as conn:
@@ -46,7 +43,6 @@ def complete_deposit_order(order_id):
             return True
         return False
 
-# ========== ПОКУПКИ ==========
 def add_purchase(user_id, item_name, price):
     purchase_id = str(uuid.uuid4())[:8]
     with sqlite3.connect(DB_NAME) as conn:
@@ -56,7 +52,6 @@ def get_user_purchases(user_id, limit=10):
     with sqlite3.connect(DB_NAME) as conn:
         return conn.execute("SELECT purchase_id, item_name, price, created_at FROM purchases WHERE user_id = ? ORDER BY created_at DESC LIMIT ?", (user_id, limit)).fetchall()
 
-# ========== ПРОМОКОДЫ ==========
 def add_promocode(code, discount_type, discount_value, uses_left, expires_at=None):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("INSERT OR REPLACE INTO promocodes (code, discount_type, discount_value, uses_left, expires_at) VALUES (?, ?, ?, ?, ?)",
@@ -68,79 +63,64 @@ def get_promocode(code):
 
 def use_promo_code(user_id, code):
     with sqlite3.connect(DB_NAME) as conn:
-        # проверяем, не использовал ли уже
         used = conn.execute("SELECT 1 FROM used_promocodes WHERE user_id = ? AND code = ?", (user_id, code)).fetchone()
         if used:
             return False
-        # получаем промокод
         promo = conn.execute("SELECT discount_type, discount_value FROM promocodes WHERE code = ? AND uses_left > 0", (code,)).fetchone()
         if not promo:
             return False
-        # уменьшаем количество использований
         conn.execute("UPDATE promocodes SET uses_left = uses_left - 1 WHERE code = ?", (code,))
         conn.execute("INSERT INTO used_promocodes (user_id, code) VALUES (?, ?)", (user_id, code))
-        # применяем скидку (просто возвращаем тип и значение)
         return promo
 
-# ========== КАТАЛОГ ТОВАРОВ (JSON) ==========
-def _load_products():
+def load_catalog():
     if not os.path.exists(PRODUCTS_FILE):
-        return {}
+        # Инициализируем из config.CATALOG, если файла нет
+        from config import CATALOG as default_catalog
+        save_catalog(default_catalog)
+        return default_catalog
     with open(PRODUCTS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def _save_products(products):
-    with open(PRODUCTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(products, f, indent=2, ensure_ascii=False)
-
-def load_catalog():
-    """Загружает каталог из products.json (совместимость со старым именем)"""
-    return _load_products()
-
 def save_catalog(catalog):
-    """Сохраняет каталог в products.json"""
-    _save_products(catalog)
+    with open(PRODUCTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(catalog, f, indent=2, ensure_ascii=False)
 
 def get_all_products():
-    return _load_products()
+    return load_catalog()
 
 def add_product_to_db(category_id, item_id, name, price, desc):
-    products = _load_products()
+    products = load_catalog()
     if category_id not in products:
         products[category_id] = {"name": category_id, "items": {}}
     if item_id in products[category_id]["items"]:
         return False
     products[category_id]["items"][item_id] = {"name": name, "price": price, "desc": desc}
-    _save_products(products)
+    save_catalog(products)
     return True
 
 def remove_product_from_db(item_id):
-    products = _load_products()
+    products = load_catalog()
     for cat_id, cat_data in products.items():
         if item_id in cat_data["items"]:
             del cat_data["items"][item_id]
             if not cat_data["items"]:
                 del products[cat_id]
-            _save_products(products)
+            save_catalog(products)
             return True
     return False
 
-# ========== АДМИНСКИЕ ФУНКЦИИ (статистика, пользователи, заказы) ==========
 def get_all_users():
     with sqlite3.connect(DB_NAME) as conn:
         return conn.execute("SELECT user_id, username, balance, registered_at FROM users ORDER BY registered_at DESC").fetchall()
 
-def get_all_orders():
-    # Здесь можно объединить deposit_orders и purchases, но для простоты вернём пустой список
-    # Если вам нужны реальные заказы – допишем
-    return []
-
-def get_order_by_id(order_id):
+def get_all_deposit_orders():
     with sqlite3.connect(DB_NAME) as conn:
-        row = conn.execute("SELECT user_id, amount, status FROM deposit_orders WHERE order_id = ?", (order_id,)).fetchone()
-        if row:
-            return (order_id, row[0], row[1], row[2])
-        return None
+        return conn.execute("SELECT order_id, user_id, amount, status, created_at FROM deposit_orders ORDER BY created_at DESC").fetchall()
+
+def get_deposit_order_by_id(order_id):
+    with sqlite3.connect(DB_NAME) as conn:
+        return conn.execute("SELECT * FROM deposit_orders WHERE order_id = ?", (order_id,)).fetchone()
 
 def get_stats():
     with sqlite3.connect(DB_NAME) as conn:
