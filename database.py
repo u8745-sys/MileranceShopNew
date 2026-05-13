@@ -93,3 +93,28 @@ def remove_product_from_db(item_id):
             _save_products(products)
             return True
     return False
+
+def get_all_users():
+    with sqlite3.connect(DB_NAME) as conn:
+        return conn.execute("SELECT user_id, username, balance, registered_at FROM users ORDER BY registered_at DESC").fetchall()
+
+def get_all_orders():
+    with sqlite3.connect(DB_NAME) as conn:
+        return conn.execute("SELECT order_id, user_id, total, status, created_at FROM orders ORDER BY created_at DESC").fetchall()
+
+def get_order_by_id(order_id):
+    with sqlite3.connect(DB_NAME) as conn:
+        return conn.execute("SELECT * FROM orders WHERE order_id = ?", (order_id,)).fetchone()
+
+def get_stats():
+    with sqlite3.connect(DB_NAME) as conn:
+        users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        total_orders = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
+        completed_orders = conn.execute("SELECT COUNT(*) FROM orders WHERE status = 'completed'").fetchone()[0]
+        total_amount = conn.execute("SELECT SUM(total) FROM orders WHERE status = 'completed'").fetchone()[0] or 0
+        pending_orders = conn.execute("SELECT COUNT(*) FROM orders WHERE status = 'pending'").fetchone()[0]
+        return {"users": users, "total_orders": total_orders, "completed_orders": completed_orders, "total_amount": total_amount, "pending_orders": pending_orders}
+
+def get_pending_orders_count():
+    with sqlite3.connect(DB_NAME) as conn:
+        return conn.execute("SELECT COUNT(*) FROM orders WHERE status = 'pending'").fetchone()[0]
