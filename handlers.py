@@ -78,7 +78,7 @@ async def deposit_amount(call: CallbackQuery):
             "order_id": order_id,
             "currency": "RUB",
             "success_url": f"https://t.me/{(await bot.get_me()).username}",
-            "webhook_url": "https://ваш-домен.up.railway.app/webhook/platima"  # замените на реальный
+            "webhook_url": "https://mileranceshop-production.up.railway.app/webhook/platima"  # замените на реальный
         }
         async with session.get(PLATIMA_API_URL, params=params) as resp:
             data = await resp.json()
