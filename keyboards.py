@@ -1,5 +1,5 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import CATALOG
+from database import load_catalog
 
 def main_menu():
     buttons = [
@@ -7,7 +7,7 @@ def main_menu():
         [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")],
         [InlineKeyboardButton(text="💰 Пополнить", callback_data="deposit")],
         [InlineKeyboardButton(text="🎁 Промокод", callback_data="promocode")],
-        [InlineKeyboardButton(text="📞 Поддержка", url="https://t.me/ВАШ_ЮЗЕРНЕЙМ")]
+        [InlineKeyboardButton(text="📞 Поддержка", url="https://t.me/milerance")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -30,17 +30,15 @@ def deposit_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def catalog_keyboard():
-    products = get_all_products()  # нужно импортировать в хэндлерах, но здесь для клавиатуры используем CATALOG из config
-    # Для простоты используем CATALOG, но если хотите динамические товары — надо передавать products
-    from config import CATALOG as static_catalog
-    buttons = [[InlineKeyboardButton(text=cat["name"], callback_data=f"cat_{cat_id}")] for cat_id, cat in static_catalog.items()]
+    catalog = load_catalog()
+    buttons = [[InlineKeyboardButton(text=cat["name"], callback_data=f"cat_{cat_id}")] for cat_id, cat in catalog.items()]
     buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def items_keyboard(category_id):
-    from config import CATALOG as static_catalog
+    catalog = load_catalog()
     buttons = []
-    for item_id, item in static_catalog[category_id]["items"].items():
+    for item_id, item in catalog[category_id]["items"].items():
         buttons.append([InlineKeyboardButton(text=f"{item['name']} — {item['price']}₽", callback_data=f"item_{category_id}_{item_id}")])
     buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="catalog")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -56,7 +54,6 @@ def item_detail_keyboard(category_id, item_id, price):
 def back_to_main():
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В меню", callback_data="main_menu")]])
 
-# ----- АДМИНСКИЕ КЛАВИАТУРЫ -----
 def admin_main_menu():
     buttons = [
         [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
