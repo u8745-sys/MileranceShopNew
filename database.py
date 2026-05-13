@@ -1,60 +1,17 @@
 import sqlite3
 import json
 import uuid
+import os
 
 DB_NAME = "shop.db"
 PRODUCTS_FILE = "products.json"
 
 def init_db():
     with sqlite3.connect(DB_NAME) as conn:
-        # Таблица пользователей
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY,
-                username TEXT,
-                balance INTEGER DEFAULT 0,
-                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        # Таблица заказов (пополнений и покупок)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-                order_id TEXT PRIMARY KEY,
-                user_id INTEGER,
-                amount INTEGER,
-                type TEXT,
-                status TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        # Таблица промокодов
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS promocodes (
-                code TEXT PRIMARY KEY,
-                discount INTEGER,
-                uses_left INTEGER,
-                expires_at TIMESTAMP
-            )
-        """)
-        # Таблица использованных промокодов пользователями
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS used_promocodes (
-                user_id INTEGER,
-                code TEXT,
-                used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        # Таблица заказов на покупку товаров (история)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS purchases (
-                purchase_id TEXT PRIMARY KEY,
-                user_id INTEGER,
-                item_id TEXT,
-                item_name TEXT,
-                price INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        conn.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, username TEXT, balance INTEGER DEFAULT 0, registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+        conn.execute("CREATE TABLE IF NOT EXISTS orders (order_id TEXT PRIMARY KEY, user_id INTEGER, items TEXT, total INTEGER, status TEXT DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+        conn.execute("CREATE TABLE IF NOT EXISTS promocodes (code TEXT PRIMARY KEY, discount_type TEXT, discount_value INTEGER, uses_left INTEGER, expires_at TIMESTAMP)")
+        conn.execute("CREATE TABLE IF NOT EXISTS used_promocodes (user_id INTEGER, code TEXT, used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
 
 def add_user(user_id, username):
     with sqlite3.connect(DB_NAME) as conn:
@@ -69,38 +26,23 @@ def update_balance(user_id, amount):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, user_id))
 
-def add_deposit_order(order_id, user_id, amount):
+def add_order(user_id, items, total):
+    order_id = str(uuid.uuid4())[:8]
     with sqlite3.connect(DB_NAME) as conn:
-        conn.execute("INSERT INTO orders (order_id, user_id, amount, type, status) VALUES (?, ?, ?, 'deposit', 'pending')", (order_id, user_id, amount))
+        conn.execute("INSERT INTO orders (order_id, user_id, items, total, status) VALUES (?, ?, ?, ?, 'completed')", (order_id, user_id, json.dumps(items), total))
+    return order_id
 
-def complete_deposit_order(order_id):
+def get_user_orders(user_id):
     with sqlite3.connect(DB_NAME) as conn:
-        # Получаем сумму и пользователя
-        row = conn.execute("SELECT user_id, amount FROM orders WHERE order_id = ? AND type='deposit'", (order_id,)).fetchone()
-        if row:
-            user_id, amount = row
-            conn.execute("UPDATE orders SET status = 'completed' WHERE order_id = ?", (order_id,))
-            update_balance(user_id, amount)
-            return True
-        return False
+        return conn.execute("SELECT order_id, items, total, status, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
 
-def add_purchase(user_id, item_id, item_name, price):
-    purchase_id = str(uuid.uuid4())[:8]
+def add_promocode(code, discount_type, discount_value, uses_left, expires_at):
     with sqlite3.connect(DB_NAME) as conn:
-        conn.execute("INSERT INTO purchases (purchase_id, user_id, item_id, item_name, price) VALUES (?, ?, ?, ?, ?)", (purchase_id, user_id, item_id, item_name, price))
-    return purchase_id
-
-def get_user_purchases(user_id):
-    with sqlite3.connect(DB_NAME) as conn:
-        return conn.execute("SELECT purchase_id, item_name, price, created_at FROM purchases WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
-
-def add_promocode(code, discount, uses_left, expires_at):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute("INSERT OR REPLACE INTO promocodes (code, discount, uses_left, expires_at) VALUES (?, ?, ?, ?)", (code, discount, uses_left, expires_at))
+        conn.execute("INSERT OR REPLACE INTO promocodes VALUES (?, ?, ?, ?, ?)", (code, discount_type, discount_value, uses_left, expires_at))
 
 def get_promocode(code):
     with sqlite3.connect(DB_NAME) as conn:
-        return conn.execute("SELECT discount, uses_left, expires_at FROM promocodes WHERE code = ? AND uses_left > 0 AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)", (code,)).fetchone()
+        return conn.execute("SELECT * FROM promocodes WHERE code = ? AND uses_left > 0 AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)", (code,)).fetchone()
 
 def use_promocode(user_id, code):
     with sqlite3.connect(DB_NAME) as conn:
@@ -111,13 +53,43 @@ def use_promocode(user_id, code):
         conn.execute("INSERT INTO used_promocodes (user_id, code) VALUES (?, ?)", (user_id, code))
         return True
 
-def save_catalog(catalog):
-    with open(PRODUCTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(catalog, f, indent=2, ensure_ascii=False)
+def get_user_by_order_id(order_id):
+    with sqlite3.connect(DB_NAME) as conn:
+        row = conn.execute("SELECT user_id FROM orders WHERE order_id = ?", (order_id,)).fetchone()
+        return row[0] if row else None
 
-def load_catalog():
-    try:
-        with open(PRODUCTS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
+# ----- УПРАВЛЕНИЕ ТОВАРАМИ (products.json) -----
+def _load_products():
+    if not os.path.exists(PRODUCTS_FILE):
         return {}
+    with open(PRODUCTS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def _save_products(products):
+    with open(PRODUCTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(products, f, indent=2, ensure_ascii=False)
+
+def get_all_products():
+    return _load_products()
+
+def add_product_to_db(category_id, item_id, name, price, desc):
+    products = _load_products()
+    if category_id not in products:
+        products[category_id] = {"name": category_id, "items": {}}
+    if item_id in products[category_id]["items"]:
+        return False
+    products[category_id]["items"][item_id] = {"name": name, "price": price, "desc": desc}
+    _save_products(products)
+    return True
+
+def remove_product_from_db(item_id):
+    products = _load_products()
+    for cat_id, cat_data in products.items():
+        if item_id in cat_data["items"]:
+            del cat_data["items"][item_id]
+            # если категория опустела, удаляем её
+            if not cat_data["items"]:
+                del products[cat_id]
+            _save_products(products)
+            return True
+    return False
