@@ -1,23 +1,24 @@
 BOT_TOKEN = "8664623285:AAFlvJqJOYH7jMEbY8M4MuWLiNOGFM8QKa4"
 
-# Platima (если используете)
+# Настройки Platima
 PLATIMA_API_URL = "https://platima.ru/api/create"
+PLATIMA_WEBHOOK_SECRET = "ваш_секретный_ключ"   # придумайте сложный
 
-# Каталог товаров
+# ID администратора (ваш Telegram ID)
+ADMIN_IDS = [123456789]  # замените на свой
+
+# Ссылка на поддержку (ваш Telegram)
+SUPPORT_LINK = "https://t.me/ваш_юзернейм"
+
+# Каталог товаров (можно будет редактировать через админку)
+# Пока что пустой, вы наполните сами через админку или вручную
 CATALOG = {
-    "fortnite": {
-        "name": "🔫 Fortnite",
-        "items": {
-            "fn_800": {"name": "800 В-баксов", "price": 499, "desc": "На аккаунт"},
-            "fn_2400": {"name": "2400 В-баксов", "price": 1299, "desc": "На аккаунт"},
-            "fn_bp": {"name": "Боевой пропуск", "price": 999, "desc": "Новый сезон"}
-        }
+    "game_currency": {
+        "name": "🎮 Игровая валюта",
+        "items": {}
     },
     "subscriptions": {
         "name": "📺 Подписки",
-        "items": {
-            "netflix": {"name": "Netflix Premium 1 мес", "price": 1000, "desc": "4K, 4 устройства"},
-            "youtube": {"name": "YouTube Premium 1 мес", "price": 200, "desc": "Без рекламы"}
-        }
+        "items": {}
     }
 }
