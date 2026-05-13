@@ -5,10 +5,10 @@ PLATIMA_API_URL = "https://platima.ru/api/create"
 PLATIMA_WEBHOOK_SECRET = "ваш_секретный_ключ"   # придумайте сложный
 
 # ID администратора (ваш Telegram ID)
-ADMIN_IDS = [123456789]  # замените на свой
+ADMIN_IDS = [1017045544]  # замените на свой
 
 # Ссылка на поддержку (ваш Telegram)
-SUPPORT_LINK = "https://t.me/ваш_юзернейм"
+SUPPORT_LINK = "https://t.me/milerance"
 
 # Каталог товаров (можно будет редактировать через админку)
 # Пока что пустой, вы наполните сами через админку или вручную
