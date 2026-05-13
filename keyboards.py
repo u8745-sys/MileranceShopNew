@@ -1,25 +1,25 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import SUPPORT_LINK
+from config import CATALOG
 
-def main_menu(balance):
+def main_menu():
     buttons = [
         [InlineKeyboardButton(text="🛍️ Каталог", callback_data="catalog")],
         [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")],
-        [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="deposit")],
+        [InlineKeyboardButton(text="💰 Пополнить", callback_data="deposit")],
         [InlineKeyboardButton(text="🎁 Промокод", callback_data="promocode")],
-        [InlineKeyboardButton(text="📞 Поддержка", url=SUPPORT_LINK)]
+        [InlineKeyboardButton(text="📞 Поддержка", url="https://t.me/ВАШ_ЮЗЕРНЕЙМ")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def profile_menu(balance):
+def profile_menu():
     buttons = [
         [InlineKeyboardButton(text="📜 История покупок", callback_data="history")],
-        [InlineKeyboardButton(text="💰 Пополнить", callback_data="deposit")],
+        [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="deposit")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def deposit_menu():
+def deposit_keyboard():
     buttons = [
         [InlineKeyboardButton(text="100 ₽", callback_data="deposit_100"),
          InlineKeyboardButton(text="300 ₽", callback_data="deposit_300")],
@@ -29,26 +29,59 @@ def deposit_menu():
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def catalog_menu(catalog):
-    buttons = []
-    for cat_id, cat_data in catalog.items():
-        buttons.append([InlineKeyboardButton(text=cat_data["name"], callback_data=f"cat_{cat_id}")])
+def catalog_keyboard():
+    products = get_all_products()  # нужно импортировать в хэндлерах, но здесь для клавиатуры используем CATALOG из config
+    # Для простоты используем CATALOG, но если хотите динамические товары — надо передавать products
+    from config import CATALOG as static_catalog
+    buttons = [[InlineKeyboardButton(text=cat["name"], callback_data=f"cat_{cat_id}")] for cat_id, cat in static_catalog.items()]
     buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def items_menu(category_id, category_data):
+def items_keyboard(category_id):
+    from config import CATALOG as static_catalog
     buttons = []
-    for item_id, item in category_data["items"].items():
-        buttons.append([InlineKeyboardButton(text=f"{item['name']} — {item['price']} ₽", callback_data=f"item_{category_id}_{item_id}")])
+    for item_id, item in static_catalog[category_id]["items"].items():
+        buttons.append([InlineKeyboardButton(text=f"{item['name']} — {item['price']}₽", callback_data=f"item_{category_id}_{item_id}")])
     buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="catalog")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def item_detail_menu(category_id, item_id):
+def item_detail_keyboard(category_id, item_id, price):
     buttons = [
-        [InlineKeyboardButton(text="✅ Купить", callback_data=f"buy_{category_id}_{item_id}")],
+        [InlineKeyboardButton(text="✅ Купить", callback_data=f"buy_{category_id}_{item_id}"),
+         InlineKeyboardButton(text=f"{price}₽", callback_data="ignore")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"cat_{category_id}")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def back_to_main():
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="main_menu")]])
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В меню", callback_data="main_menu")]])
+
+# ----- АДМИНСКИЕ КЛАВИАТУРЫ -----
+def admin_main_menu():
+    buttons = [
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+        [InlineKeyboardButton(text="👥 Пользователи", callback_data="admin_users")],
+        [InlineKeyboardButton(text="📦 Заказы", callback_data="admin_orders")],
+        [InlineKeyboardButton(text="🛍 Товары", callback_data="admin_products")],
+        [InlineKeyboardButton(text="💰 Добавить баланс", callback_data="admin_add_balance")],
+        [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
+        [InlineKeyboardButton(text="🔙 Выход", callback_data="main_menu")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def admin_products_menu():
+    buttons = [
+        [InlineKeyboardButton(text="➕ Добавить товар", callback_data="admin_add_product")],
+        [InlineKeyboardButton(text="❌ Удалить товар", callback_data="admin_del_product")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_back")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def admin_back_button():
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ Назад", callback_data="admin_back")]])
+
+def admin_orders_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Подтвердить заказ", callback_data="admin_confirm")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_back")]
+    ])
