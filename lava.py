@@ -5,8 +5,8 @@ import hmac
 import json
 
 API_URL = 'https://api.lava.ru/business/invoice/create'
-SHOP_ID = "ВАШ_ID_МАГАЗИНА"
-API_KEY = "ВАШ_API_КЛЮЧ"
+SHOP_ID = "48fef41e-7f1f-4ec9-a483-8e0e362b9d1b"
+API_KEY = "B72ybYs31Llt4YKcaZAIB6GWjOLNwSYXLofpMfTkNrBgwjvM6WzZWEmJgAEQlA65"
 
 def generate_signature(params, api_key):
     # Генерация подписи по правилам Lava.top (описаны в документации)
