@@ -11,17 +11,16 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from database import (
-    get_all_users, get_all_orders, update_order_status,
-    add_product_to_db, remove_product_from_db, get_all_products,
-    get_stats, get_order_by_id, get_pending_orders_count, update_balance
+    get_all_users, get_all_deposit_orders, update_order_status,
+    add_product_to_db, remove_product_from_db, load_catalog,
+    get_stats, get_deposit_order_by_id, get_pending_orders_count, update_balance
 )
 from keyboards import admin_main_menu, admin_back_button, admin_orders_menu, admin_products_menu
 
-ADMIN_IDS = [123456789]  # ЗАМЕНИТЕ НА ВАШ TELEGRAM ID
+ADMIN_IDS = [1017045544]  # ЗАМЕНИТЕ НА ВАШ TELEGRAM ID
 
 router = Router()
 
-# FSM для добавления товара
 class AddProductStates(StatesGroup):
     waiting_for_category = State()
     waiting_for_item_id = State()
@@ -29,11 +28,9 @@ class AddProductStates(StatesGroup):
     waiting_for_price = State()
     waiting_for_desc = State()
 
-# FSM для удаления товара
 class DelProductStates(StatesGroup):
     waiting_for_item_id = State()
 
-# FSM для добавления баланса пользователю
 class AddBalanceStates(StatesGroup):
     waiting_for_user_id = State()
     waiting_for_amount = State()
@@ -41,7 +38,6 @@ class AddBalanceStates(StatesGroup):
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
-# ----- Уведомление админу о новом заказе (вызывается из handlers) -----
 async def notify_admin_new_order(bot: Bot, order_id: str, user_id: int, total: int):
     for admin_id in ADMIN_IDS:
         try:
@@ -51,7 +47,6 @@ async def notify_admin_new_order(bot: Bot, order_id: str, user_id: int, total: i
         except:
             pass
 
-# ----- АДМИН ПАНЕЛЬ -----
 @router.message(Command("admin"))
 async def admin_panel(message: Message):
     if not is_admin(message.from_user.id):
@@ -60,7 +55,6 @@ async def admin_panel(message: Message):
     pending = get_pending_orders_count()
     await message.answer(f"🔧 Админ-панель\n⏳ Ожидают подтверждения: {pending}", reply_markup=admin_main_menu())
 
-# ----- ОБРАБОТЧИКИ КНОПОК -----
 @router.callback_query(F.data.startswith("admin_"))
 async def admin_callback(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id):
@@ -82,7 +76,6 @@ async def admin_callback(call: CallbackQuery, state: FSMContext):
         if not users:
             await call.message.edit_text("Нет пользователей", reply_markup=admin_back_button())
             return
-        # CSV экспорт
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(["ID", "Username", "Баланс", "Зарегистрирован"])
@@ -98,18 +91,18 @@ async def admin_callback(call: CallbackQuery, state: FSMContext):
         await call.answer()
 
     elif action == "orders":
-        orders = get_all_orders()
+        orders = get_all_deposit_orders()
         if not orders:
             await call.message.edit_text("Нет заказов", reply_markup=admin_back_button())
             return
-        text = "📦 Последние 20 заказов:\n\n"
+        text = "📦 Последние 20 заказов на пополнение:\n\n"
         for o in orders[:20]:
-            text += f"#{o[0]} | {o[3]}₽ | {o[4]} | {o[5][:10]}\n"
+            text += f"#{o[0]} | {o[2]}₽ | {o[3]} | {o[4][:10]}\n"
         await call.message.edit_text(text, reply_markup=admin_orders_menu())
         await call.answer()
 
     elif action == "products":
-        products = get_all_products()
+        products = load_catalog()
         if products:
             prod_text = "📋 Текущие товары (item_id):\n"
             for cat_id, cat_data in products.items():
@@ -146,15 +139,15 @@ async def admin_callback(call: CallbackQuery, state: FSMContext):
         await call.message.edit_text(f"🔧 Админ-панель\n⏳ Ожидают подтверждения: {pending}", reply_markup=admin_main_menu())
         await call.answer()
 
-# ----- ДОБАВЛЕНИЕ ТОВАРА (шаги) -----
+# ----- ДОБАВЛЕНИЕ ТОВАРА -----
 @router.message(AddProductStates.waiting_for_category)
 async def add_product_category(message: Message, state: FSMContext):
-    category_id = message.text.strip()
-    if " " in category_id:
-        await message.answer("❌ ID категории без пробелов. Попробуйте снова:")
+    cat = message.text.strip()
+    if " " in cat:
+        await message.answer("❌ ID категории без пробелов.")
         return
-    await state.update_data(category_id=category_id)
-    await message.answer("Введите **item_id** товара (латиница, уникальный, например `v_bucks_1000`):")
+    await state.update_data(category=cat)
+    await message.answer("Введите **item_id** товара (латиница, уникальный):")
     await state.set_state(AddProductStates.waiting_for_item_id)
 
 @router.message(AddProductStates.waiting_for_item_id)
@@ -185,10 +178,10 @@ async def add_product_price(message: Message, state: FSMContext):
 
 @router.message(AddProductStates.waiting_for_desc)
 async def add_product_desc(message: Message, state: FSMContext):
-    data = await state.update_data(desc=message.text.strip())
-    success = add_product_to_db(data['category_id'], data['item_id'], data['name'], data['price'], data['desc'])
+    data = await state.get_data()
+    success = add_product_to_db(data['category'], data['item_id'], data['name'], data['price'], message.text.strip())
     if success:
-        await message.answer(f"✅ Товар добавлен!\n{data['category_id']}/{data['item_id']} — {data['name']} — {data['price']}₽")
+        await message.answer(f"✅ Товар добавлен!\n{data['category']}/{data['item_id']} — {data['name']} — {data['price']}₽")
     else:
         await message.answer("❌ Ошибка: item_id уже существует.")
     await state.clear()
@@ -225,7 +218,6 @@ async def add_balance_amount(message: Message, state: FSMContext):
         user_id = data['user_id']
         update_balance(user_id, amount)
         await message.answer(f"✅ Пользователю `{user_id}` начислено {amount} ₽")
-        # опционально уведомить пользователя
         try:
             await message.bot.send_message(user_id, f"💰 Ваш баланс пополнен на {amount} ₽ администратором.")
         except:
@@ -257,20 +249,23 @@ async def broadcast_handler(message: Message, state: FSMContext, bot: Bot):
     await state.clear()
     await admin_panel(message)
 
-# ----- КОМАНДЫ ПОДТВЕРЖДЕНИЯ / ОТМЕНЫ ЗАКАЗОВ -----
+# ----- КОМАНДЫ ПОДТВЕРЖДЕНИЯ ЗАКАЗОВ (для депозитов) -----
 @router.message(Command("confirm"))
 async def confirm_order(message: Message, bot: Bot):
     if not is_admin(message.from_user.id):
         return
     try:
         order_id = message.text.split()[1]
-        order = get_order_by_id(order_id)
+        order = get_deposit_order_by_id(order_id)
         if not order:
             await message.answer("❌ Заказ не найден")
             return
-        update_order_status(order_id, "completed")
-        await bot.send_message(order[1], f"✅ Ваш заказ #{order_id} выполнен! Спасибо.")
-        await message.answer(f"✅ Заказ {order_id} подтверждён")
+        if order[3] == "pending":
+            complete_deposit_order(order_id)
+            await bot.send_message(order[1], f"✅ Ваше пополнение на {order[2]} ₽ подтверждено. Баланс обновлён.")
+            await message.answer(f"✅ Заказ {order_id} подтверждён")
+        else:
+            await message.answer("Заказ уже обработан")
     except:
         await message.answer("❌ Используйте: /confirm <ID_заказа>")
 
@@ -280,12 +275,12 @@ async def decline_order(message: Message, bot: Bot):
         return
     try:
         order_id = message.text.split()[1]
-        order = get_order_by_id(order_id)
+        order = get_deposit_order_by_id(order_id)
         if not order:
             await message.answer("❌ Заказ не найден")
             return
         update_order_status(order_id, "cancelled")
-        await bot.send_message(order[1], f"❌ Заказ #{order_id} отменён. Средства вернутся в течение 3 дней.")
+        await bot.send_message(order[1], f"❌ Ваше пополнение на {order[2]} ₽ отменено. Средства вернутся в течение 3 дней.")
         await message.answer(f"❌ Заказ {order_id} отменён")
     except:
         await message.answer("❌ Используйте: /decline <ID_заказа>")
