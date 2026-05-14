@@ -2,7 +2,7 @@ import time
 import aiohttp
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 
 from config import BOT_TOKEN, LAVA_SHOP_ID, LAVA_API_KEY, LAVA_HOOK_URL, LAVA_SUCCESS_URL, LAVA_FAIL_URL
 from database import (
@@ -67,13 +67,8 @@ async def deposit_amount(call: CallbackQuery):
     order_id = f"dep_{user_id}_{int(time.time())}"
 
     # Сохраняем заказ в БД
-    add_deposit_order(user_id, amount)  # эта функция создаёт свой order_id, но мы хотим свой формат — немного модифицируем
-    # Чтобы не усложнять, можно переделать add_deposit_order с передачей order_id
-    # Я для простоты оставлю стандартную функцию, но order_id в Lava будет другой. Лучше создать отдельную функцию:
-    # В database.py добавьте: add_deposit_order_with_id(order_id, user_id, amount)
-    # Но для минимальных изменений сделаем так:
-    from database import DB_NAME
     import sqlite3
+    from database import DB_NAME
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("INSERT INTO deposit_orders (order_id, user_id, amount, status) VALUES (?, ?, ?, 'pending')", (order_id, user_id, amount))
 
@@ -95,13 +90,8 @@ async def deposit_amount(call: CallbackQuery):
         await call.message.edit_text("❌ Ошибка создания платежа. Попробуйте позже.", reply_markup=back_to_main())
     await call.answer()
 
-# ---------- ПРОМОКОДЫ ----------
-@router.callback_query(F.data == "promocode")
-async def promocode_prompt(call: CallbackQuery):
-    await call.message.answer("🎁 Введите код промокода (одним сообщением):")
-    await call.answer()
-
-@router.message()
+# ---------- ПРОМОКОДЫ (только на обычные сообщения, не на команды) ----------
+@router.message(~Command(commands=["start", "admin", "confirm", "decline"]))
 async def apply_promocode(message: Message):
     code = message.text.strip().upper()
     promo = get_promocode(code)
