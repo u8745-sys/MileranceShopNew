@@ -1,16 +1,18 @@
 import time
-import aiohttp
+import sqlite3
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 
-from config import BOT_TOKEN, LAVA_SHOP_ID, LAVA_API_KEY, LAVA_HOOK_URL, LAVA_SUCCESS_URL, LAVA_FAIL_URL
+from config import BOT_TOKEN, LAVA_HOOK_URL, LAVA_SUCCESS_URL, LAVA_FAIL_URL
 from database import (
-    add_user, get_user_balance, update_balance,
-    add_deposit_order, complete_deposit_order,
+    DB_NAME, add_user, get_user_balance, update_balance,
+    add_deposit_order_with_id, complete_deposit_order,
     add_purchase, get_user_purchases,
     get_promocode, use_promo_code,
-    load_catalog, save_catalog
+    load_catalog
 )
 from keyboards import (
     main_menu, catalog_keyboard, items_keyboard, item_detail_keyboard,
@@ -20,6 +22,10 @@ from lava import create_invoice
 
 router = Router()
 bot = Bot(token=BOT_TOKEN)
+
+# ----- FSM для произвольной суммы -----
+class DepositStates(StatesGroup):
+    waiting_for_amount = State()
 
 # ---------- СТАРТ ----------
 @router.message(CommandStart())
@@ -54,32 +60,28 @@ async def history(call: CallbackQuery):
     await call.message.edit_text(text, reply_markup=back_to_main())
     await call.answer()
 
-# ---------- ПОПОЛНЕНИЕ БАЛАНСА (Lava) ----------
+# ---------- ПОПОЛНЕНИЕ БАЛАНСА ----------
 @router.callback_query(F.data == "deposit")
 async def deposit_menu(call: CallbackQuery):
     await call.message.edit_text("💰 Выберите сумму пополнения:", reply_markup=deposit_keyboard())
     await call.answer()
 
 @router.callback_query(F.data.startswith("deposit_"))
-async def deposit_amount(call: CallbackQuery):
+async def deposit_amount(call: CallbackQuery, state: FSMContext):
+    # если нажата кнопка "Другая сумма"
+    if call.data == "deposit_custom":
+        await call.message.edit_text("💸 Введите сумму пополнения в рублях (только число):")
+        await state.set_state(DepositStates.waiting_for_amount)
+        await call.answer()
+        return
+
+    # фиксированные суммы
     amount = int(call.data.split("_")[1])
     user_id = call.from_user.id
     order_id = f"dep_{user_id}_{int(time.time())}"
+    add_deposit_order_with_id(order_id, user_id, amount)
 
-    # Сохраняем заказ в БД
-    import sqlite3
-    from database import DB_NAME
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute("INSERT INTO deposit_orders (order_id, user_id, amount, status) VALUES (?, ?, ?, 'pending')", (order_id, user_id, amount))
-
-    pay_url = await create_invoice(
-        amount=amount,
-        order_id=order_id,
-        hook_url=LAVA_HOOK_URL,
-        success_url=LAVA_SUCCESS_URL,
-        fail_url=LAVA_FAIL_URL,
-        custom_fields=str(user_id)
-    )
+    pay_url = await create_invoice(amount, order_id, LAVA_HOOK_URL, LAVA_SUCCESS_URL, LAVA_FAIL_URL, str(user_id))
 
     if pay_url:
         await call.message.edit_text(
@@ -90,7 +92,36 @@ async def deposit_amount(call: CallbackQuery):
         await call.message.edit_text("❌ Ошибка создания платежа. Попробуйте позже.", reply_markup=back_to_main())
     await call.answer()
 
-# ---------- ПРОМОКОДЫ (только на обычные сообщения, не на команды) ----------
+@router.message(DepositStates.waiting_for_amount)
+async def process_custom_deposit(message: Message, state: FSMContext):
+    try:
+        amount = int(message.text.strip())
+        if amount < 10:
+            await message.answer("❌ Минимальная сумма пополнения — 10 ₽. Попробуйте снова.")
+            return
+        if amount > 50000:
+            await message.answer("❌ Максимальная сумма пополнения — 50 000 ₽. Попробуйте снова.")
+            return
+
+        user_id = message.from_user.id
+        order_id = f"dep_{user_id}_{int(time.time())}"
+        add_deposit_order_with_id(order_id, user_id, amount)
+
+        pay_url = await create_invoice(amount, order_id, LAVA_HOOK_URL, LAVA_SUCCESS_URL, LAVA_FAIL_URL, str(user_id))
+
+        if pay_url:
+            await message.answer(
+                f"💳 Пополнение на {amount} ₽\n\nСсылка для оплаты:\n{pay_url}\n\nПосле оплаты баланс обновится автоматически.",
+                reply_markup=back_to_main()
+            )
+        else:
+            await message.answer("❌ Ошибка создания платежа. Попробуйте позже.", reply_markup=back_to_main())
+
+        await state.clear()
+    except ValueError:
+        await message.answer("❌ Пожалуйста, введите число (только цифры).")
+
+# ---------- ПРОМОКОДЫ ----------
 @router.message(~Command(commands=["start", "admin", "confirm", "decline"]))
 async def apply_promocode(message: Message):
     code = message.text.strip().upper()
@@ -118,7 +149,7 @@ async def show_catalog(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("cat_"))
 async def show_items(call: CallbackQuery):
-    cat_id = call.data.split("_")[1]
+    cat_id = call.data[4:]  # после "cat_"
     catalog = load_catalog()
     if cat_id not in catalog:
         await call.answer("Категория не найдена")
@@ -128,7 +159,11 @@ async def show_items(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("item_"))
 async def show_item_detail(call: CallbackQuery):
-    _, cat_id, item_id = call.data.split("_")
+    parts = call.data.split("_", 2)
+    if len(parts) != 3:
+        await call.answer("Ошибка: неверный формат товара")
+        return
+    _, cat_id, item_id = parts
     catalog = load_catalog()
     if cat_id not in catalog or item_id not in catalog[cat_id]["items"]:
         await call.answer("Товар не найден")
@@ -141,8 +176,15 @@ async def show_item_detail(call: CallbackQuery):
 # ---------- ПОКУПКА ТОВАРА ----------
 @router.callback_query(F.data.startswith("buy_"))
 async def buy_item(call: CallbackQuery):
-    _, cat_id, item_id = call.data.split("_")
+    parts = call.data.split("_", 2)
+    if len(parts) != 3:
+        await call.answer("Ошибка: неверный формат покупки")
+        return
+    _, cat_id, item_id = parts
     catalog = load_catalog()
+    if cat_id not in catalog or item_id not in catalog[cat_id]["items"]:
+        await call.answer("Товар не найден")
+        return
     item = catalog[cat_id]["items"][item_id]
     price = item["price"]
     user_id = call.from_user.id
