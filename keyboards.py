@@ -7,7 +7,7 @@ def main_menu():
         [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")],
         [InlineKeyboardButton(text="💰 Пополнить", callback_data="deposit")],
         [InlineKeyboardButton(text="🎁 Промокод", callback_data="promocode")],
-        [InlineKeyboardButton(text="📞 Поддержка", url="https://t.me/milerance")]
+        [InlineKeyboardButton(text="📞 Поддержка", url="https://t.me/ВАШ_ЮЗЕРНЕЙМ")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -25,6 +25,7 @@ def deposit_keyboard():
          InlineKeyboardButton(text="300 ₽", callback_data="deposit_300")],
         [InlineKeyboardButton(text="500 ₽", callback_data="deposit_500"),
          InlineKeyboardButton(text="1000 ₽", callback_data="deposit_1000")],
+        [InlineKeyboardButton(text="✏️ Другая сумма", callback_data="deposit_custom")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
