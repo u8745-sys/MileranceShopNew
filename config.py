@@ -1,14 +1,11 @@
-BOT_TOKEN = "8664623285:AAFlvJqJOYH7jMEbY8M4MuWLiNOGFM8QKa4"
+import os
 
-# Lava.top
-LAVA_SHOP_ID = "48fef41e-7f1f-4ec9-a483-8e0e362b9d1b"          # ID проекта из настроек Lava
-LAVA_API_KEY = "B72ybYs31Llt4YKcaZAIB6GWjOLNwSYXLofpMfTkNrBgwjvM6WzZWEmJgAEQlA65"          # API-ключ из раздела Интеграция
-LAVA_SECRET_KEY = "B72ybYs31Llt4YKcaZAIB6GWjOLNwSYXLofpMfTkNrBgwjvM6WzZWEmJgAEQlA65"    # Секретный ключ из настроек проекта
-LAVA_HOOK_URL = "https://mileranceshop-production.up.railway.app/webhook/lava"
-LAVA_SUCCESS_URL = "https://t.me/MileranceShop_bot"
-LAVA_FAIL_URL = "https://t.me/MileranceShop_bot"
+BOT_TOKEN = "8664623285:AAFlvJqJOYH7jMEbY8M4MuWLiNOGFM8QKa4"   # от BotFather
 
-# Каталог товаров (можно редактировать через админку, но для начальной инициализации оставим)
+# CryptoBot
+CRYPTO_TOKEN = "582005:AA4QlZJUS4XQHveMtd8WWuSMkPyMQHrC2Op"  # ваш токен
+
+# Начальный каталог (потом редактируется через админку)
 CATALOG = {
     "fortnite": {
         "name": "🔫 Fortnite",
