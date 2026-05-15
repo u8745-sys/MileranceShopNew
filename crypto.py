@@ -15,7 +15,7 @@ async def create_invoice(amount, order_id, user_id):
             "amount": str(amount),
             "description": f"Пополнение баланса #{order_id}",
             "paid_btn_name": "callback",
-            "paid_btn_url": f"https://t.me/ваш_бот",   # замените на юзернейм бота
+            "paid_btn_url": f"https://t.me/MileranceShop_bot",   # замените на юзернейм бота
             "custom_id": order_id
         }
         async with session.post(API_URL, headers=headers, json=payload) as resp:
