@@ -6,19 +6,17 @@ from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-from config import BOT_TOKEN, LAVA_HOOK_URL, LAVA_SUCCESS_URL, LAVA_FAIL_URL
+from config import BOT_TOKEN
 from database import (
     DB_NAME, add_user, get_user_balance, update_balance,
-    add_deposit_order_with_id, complete_deposit_order,
-    add_purchase, get_user_purchases,
-    get_promocode, use_promo_code,
-    load_catalog
+    add_deposit_order_with_id, add_purchase, get_user_purchases,
+    get_promocode, use_promo_code, load_catalog
 )
 from keyboards import (
     main_menu, catalog_keyboard, items_keyboard, item_detail_keyboard,
     profile_menu, deposit_keyboard, back_to_main
 )
-from lava import create_invoice
+from crypto import create_invoice   # <--- импорт из crypto
 
 router = Router()
 bot = Bot(token=BOT_TOKEN)
@@ -81,13 +79,14 @@ async def deposit_amount(call: CallbackQuery, state: FSMContext):
     order_id = f"dep_{user_id}_{int(time.time())}"
     add_deposit_order_with_id(order_id, user_id, amount)
 
-    pay_url = await create_invoice(amount, order_id, LAVA_HOOK_URL, LAVA_SUCCESS_URL, LAVA_FAIL_URL, str(user_id))
+    pay_url = await create_invoice(amount, order_id, user_id)
 
     if pay_url:
         await call.message.edit_text(
-            f"💳 Пополнение на {amount} ₽\n\nСсылка для оплаты:\n{pay_url}\n\nПосле оплаты баланс обновится автоматически.",
+            f"💳 Пополнение на {amount} ₽\n\nСсылка для оплаты (USDT):\n{pay_url}\n\nПосле оплаты нажмите '✅ Проверить оплату' или дождитесь автоматического зачисления.",
             reply_markup=back_to_main()
         )
+        # TODO: добавить кнопку "Проверить оплату"
     else:
         await call.message.edit_text("❌ Ошибка создания платежа. Попробуйте позже.", reply_markup=back_to_main())
     await call.answer()
@@ -107,11 +106,11 @@ async def process_custom_deposit(message: Message, state: FSMContext):
         order_id = f"dep_{user_id}_{int(time.time())}"
         add_deposit_order_with_id(order_id, user_id, amount)
 
-        pay_url = await create_invoice(amount, order_id, LAVA_HOOK_URL, LAVA_SUCCESS_URL, LAVA_FAIL_URL, str(user_id))
+        pay_url = await create_invoice(amount, order_id, user_id)
 
         if pay_url:
             await message.answer(
-                f"💳 Пополнение на {amount} ₽\n\nСсылка для оплаты:\n{pay_url}\n\nПосле оплаты баланс обновится автоматически.",
+                f"💳 Пополнение на {amount} ₽\n\nСсылка для оплаты (USDT):\n{pay_url}\n\nПосле оплаты нажмите '✅ Проверить оплату' или дождитесь автоматического зачисления.",
                 reply_markup=back_to_main()
             )
         else:
