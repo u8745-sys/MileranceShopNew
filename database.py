@@ -33,6 +33,11 @@ def add_deposit_order(user_id, amount):
         conn.execute("INSERT INTO deposit_orders (order_id, user_id, amount, status) VALUES (?, ?, ?, 'pending')", (order_id, user_id, amount))
     return order_id
 
+def add_deposit_order_with_id(order_id, user_id, amount):
+    """Добавляет заказ на пополнение с заданным order_id (используется в handlers)"""
+    with sqlite3.connect(DB_NAME) as conn:
+        conn.execute("INSERT INTO deposit_orders (order_id, user_id, amount, status) VALUES (?, ?, ?, 'pending')", (order_id, user_id, amount))
+
 def complete_deposit_order(order_id):
     with sqlite3.connect(DB_NAME) as conn:
         row = conn.execute("SELECT user_id, amount FROM deposit_orders WHERE order_id = ? AND status = 'pending'", (order_id,)).fetchone()
@@ -75,7 +80,6 @@ def use_promo_code(user_id, code):
 
 def load_catalog():
     if not os.path.exists(PRODUCTS_FILE):
-        # Инициализируем из config.CATALOG, если файла нет
         from config import CATALOG as default_catalog
         save_catalog(default_catalog)
         return default_catalog
